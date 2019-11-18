@@ -11,11 +11,23 @@ TARGET = psched
 .PHONY: all clean
 all: $(TARGET)
 
-$(TARGET): $(OBJ)
-	gcc -o $(DIR_BIN)/$@ $^ $(CFLAGS)
+$(TARGET): chkObjDir chkBinDir $(OBJ)
+	gcc -o $(DIR_BIN)/$@ $(OBJ) $(CFLAGS)
 
 $(DIR_OBJ)/%.o: $(DIR_SRC)/%.c
 	gcc -c $< -o $@ $(CFLAGS)
 
+chkObjDir:
+	@if test ! -d $(DIR_OBJ); \
+	then \
+		mkdir $(DIR_OBJ); \
+	fi
+
+chkBinDir:
+	@if test ! -d $(DIR_BIN); \
+	then \
+		mkdir $(DIR_BIN); \
+	fi
+
 clean:
-	-rm $(DIR_BIN)/psched $(OBJ)
+	-rm -rf $(DIR_BIN) $(DIR_OBJ)
