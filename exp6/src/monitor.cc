@@ -44,7 +44,7 @@ void Condition::wait(Sema *mutex, int dirc) {
 }
 
 void Condition::signal(int dirc) {
-    printf("%d signal %d\n", getpid(), dirc);
+    // printf("%d signal %d\n", getpid(), dirc);
     sema[dirc]->signal();  // 离开车道
     // printf("Condition (signal %d) %d sema[0].val=%d sema[1].val=%d\n", dirc, getpid(), semctl(sema[0]->semId, 0, GETVAL), semctl(sema[1]->semId, 0, GETVAL));
 }

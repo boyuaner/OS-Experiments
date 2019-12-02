@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     int cnt, maxNum;
     if (argv[1] == NULL) {
         cnt = 10;
-        maxNum = 3;
+        maxNum = 1;
     } else if (argv[2] == NULL) {
         cnt = atoi(argv[1]);
         maxNum = 1;
