@@ -19,7 +19,13 @@ int P(int sem_id);
 int V(int sem_id);
 
 typedef union semuns {
-    int val;
+    int              val;    /* Value for SETVAL */
+    struct semid_ds *buf;    /* Buffer for IPC_STAT, IPC_SET */
+    unsigned short  *array;  /* Array for GETALL, SETALL */
+    #if defined(_linux_)
+    struct seminfo  *__buf;  /* Buffer for IPC_INFO
+                                (Linux-specific) */
+    #endif
 } Sem_uns;
 
 // typedef struct msgbuf {

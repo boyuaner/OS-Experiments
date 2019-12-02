@@ -7,6 +7,7 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 int get_ipc_id(char *proc_file, key_t key) {
     FILE *pf;
@@ -105,6 +106,7 @@ int P(int sem_id) {
     buf.sem_num = 0;
     buf.sem_op = -1;
     buf.sem_flg = SEM_UNDO;
+    // printf("P: %d\n", sem_id);
     if (semop(sem_id, &buf, 1) < 0) {
         perror("Operation P failed");
         exit(EXIT_FAILURE);
@@ -118,6 +120,7 @@ int V(int sem_id) {
     buf.sem_num = 0;
     buf.sem_op = 1;
     buf.sem_flg = SEM_UNDO;
+    // printf("V: %d %d\n", sem_id, getpid());
     if (semop(sem_id, &buf, 1) < 0) {
         perror("Operation V failed");
         exit(EXIT_FAILURE);

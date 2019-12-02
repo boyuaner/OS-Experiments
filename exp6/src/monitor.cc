@@ -1,16 +1,16 @@
 #include "monitor.h"
 #include <stdio.h>
 #include <unistd.h>
+#include "ipc.h"
 
-char dirction[2][10] = {"left", "right"};
+const char dirction[2][10] = {"left", "right"};
 
 Sema::Sema(int semId) {
     this->semId = semId;
 }
 
 Sema::~Sema() {
-    Sem_uns sem_arg;
-    semctl(semId, 0, IPC_RMID, sem_arg);
+    semctl(semId, 0, IPC_RMID);
 }
 
 int Sema::wait() {
@@ -23,11 +23,11 @@ int Sema::signal() {
 
 Condition::Condition() {
     int ipcFlag = IPC_CREAT | 0644;
-    int semKey = 220;
-    int semVal = 0;
+    int semKey = 2000;
 
-    sema[0] = new Sema(set_sem(semKey++, semVal, ipcFlag));
-    sema[1] = new Sema(set_sem(semKey++, semVal, ipcFlag));
+    sema[0] = new Sema(set_sem(semKey++, 0, ipcFlag));
+    sema[1] = new Sema(set_sem(semKey++, 0, ipcFlag));
+    printf("Condition sema[0]=%d val=%d sema[1]=%d val=%d\n", sema[0]->semId, semctl(sema[0]->semId, 0, GETVAL), sema[1]->semId, semctl(sema[1]->semId, 0, GETVAL));
 }
 
 Condition::~Condition() {
@@ -35,70 +35,89 @@ Condition::~Condition() {
     delete sema[1];
 }
 
-void Condition::wait(Sema *lock, int dirc) {
-    lock->signal();
-    sema[dirc]->wait();
-    lock->wait();
+void Condition::wait(Sema *mutex, int dirc) {
+    mutex->signal();  // 开锁
+    // printf("Condition (wait %d) %d sema[0].val=%d sema[1].val=%d mutex.val=%d\n", dirc, getpid(), semctl(sema[0]->semId, 0, GETVAL), semctl(sema[1]->semId, 0, GETVAL), semctl(mutex->semId, 0, GETVAL));
+    sema[dirc]->wait();  // 在队列中等待
+    // printf("Condition %d mutex.val=%d\n", getpid(), semctl(mutex->semId, 0, GETVAL));
+    mutex->wait();  // 上锁
 }
 
 void Condition::signal(int dirc) {
-    sema[dirc]->signal();
+    printf("%d signal %d\n", getpid(), dirc);
+    sema[dirc]->signal();  // 离开车道
+    // printf("Condition (signal %d) %d sema[0].val=%d sema[1].val=%d\n", dirc, getpid(), semctl(sema[0]->semId, 0, GETVAL), semctl(sema[1]->semId, 0, GETVAL));
 }
 
-Monitor::Monitor(int rate) {
-    this->rate = rate;
+Monitor::Monitor(int maxNum) {
+    this->maxNum = maxNum;
 
     int ipcFlag = IPC_CREAT | 0644;
-    int shmKey = 120;
-    int semKey = 210;
-    int shmVal = 4 * sizeof(int);
-    int semVal = 1;
+    int shmKey = 1000;
+    int shmVal = 1;
+    int semKey = 1100;
 
     condition = new Condition();
-    lock = new Sema(set_sem(semKey++, semVal, ipcFlag));
+    mutex1 = new Sema(set_sem(semKey++, 1, ipcFlag));
+    mutex2 = new Sema(set_sem(semKey++, maxNum, ipcFlag));
+    // printf("Monitor mutex=%d val=%d\n", mutex->semId, semctl(mutex->semId, 0, GETVAL));
 
-    shmPtr = set_shm(shmKey++, shmVal, ipcFlag);
-    cnt[0] = (int *)shmPtr;
-    cnt[1] = (int *)shmPtr + 1;
-    currentDirc = (int *)shmPtr + 2;
-    *currentDirc = -1;
+    cnt[0] = (int *)set_shm(shmKey++, shmVal * sizeof(int), ipcFlag);
+    cnt[1] = (int *)set_shm(shmKey++, shmVal * sizeof(int), ipcFlag);
+    printf("Monitor cnt[0]=%p cnt[1]=%p\n", cnt[0], cnt[1]);
+    currentDirc = (int *)set_shm(shmKey++, shmVal * sizeof(int), ipcFlag);
+    crossing = (int *)set_shm(shmKey++, shmVal * sizeof(int), ipcFlag);
+    *currentDirc = -1;  // 当前方向初始化为-1
+    (*cnt[0]) = (*cnt[1]) = (*crossing) = 0;
 }
 
 Monitor::~Monitor() {
-    delete lock;
+    delete mutex1;
+    delete mutex2;
     delete condition;
 
-    int shmKey = 120;
-    shmdt(shmPtr);
+    int shmKey = 1000;
+    shmdt(cnt[0]);
+    shmdt(cnt[1]);
+    shmdt(currentDirc);
+    shmdt(crossing);
+    shmctl(get_ipc_id("/proc/sysvipc/shm", shmKey++), IPC_RMID, NULL);
+    shmctl(get_ipc_id("/proc/sysvipc/shm", shmKey++), IPC_RMID, NULL);
+    shmctl(get_ipc_id("/proc/sysvipc/shm", shmKey++), IPC_RMID, NULL);
     shmctl(get_ipc_id("/proc/sysvipc/shm", shmKey++), IPC_RMID, NULL);
 }
 
 void Monitor::arrive(int dirc) {
-    lock->wait();
     printf("%d to %s arrived\n", getpid(), dirction[dirc]);
-    *cnt[dirc] = *cnt[dirc] + 1;
-    if ((*currentDirc != -1 && *currentDirc != dirc) || *cnt[dirc] > MAXNUM) condition->wait(lock, dirc);
-    lock->signal();
-}
-
-void Monitor::cross(int dirc) {
-    lock->wait();
-    *cnt[dirc] = *cnt[dirc] - 1;
-    *currentDirc = dirc;
-    sleep(rate);
-    lock->signal();
-}
-
-void Monitor::quit(int dirc) {
-    lock->wait();
-    printf("%d to %s quit\n", getpid(), dirction[dirc]);
-    printf("left: %d, right: %d\n", *cnt[0], *cnt[1]);
-    if (*cnt[dirc ^ 1] > 0) {
-        condition->signal(dirc ^ 1);
-    } else if (*cnt[dirc] > 0) {
-        condition->signal(dirc);
+    mutex1->wait();
+    *cnt[dirc] += 1;
+    if (*currentDirc != -1 && (*currentDirc != dirc || *crossing >= maxNum)) {
+        mutex1->signal();
+        condition->sema[dirc]->wait();
+        mutex2->wait();
+        // condition->wait(mutex, dirc);
     } else {
-        *currentDirc = -1;
+        mutex1->signal();
+        mutex2->wait();
     }
-    lock->signal();
+    *cnt[dirc] -= 1;
+    *crossing += 1;
+    *currentDirc = dirc;
+
+    printf("%d to %s is crossing, tot trains %d\n", getpid(), dirction[dirc], *crossing);
+    sleep(1);
+
+    *crossing -= 1;
+    printf("%d to %s quit, tot trains %d\n", getpid(), dirction[dirc], *crossing);
+    // printf("cnt[0]=%d cnt[1]=%d\n", *cnt[0], *cnt[1]);
+    if (*crossing == 0) {
+        if ((*cnt[dirc ^ 1]) > 0) {
+            condition->signal(dirc ^ 1);
+        } else if ((*cnt[dirc]) > 0) {
+            condition->signal(dirc);
+        } else {
+            // printf("%d do nothing\n", getpid());
+        }
+    }
+    mutex2->signal();
 }

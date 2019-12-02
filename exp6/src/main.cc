@@ -16,32 +16,53 @@ void beforeExit(int param) {
 }
 
 int main(int argc, char *argv[]) {
-    int cnt, rate;
+    int cnt, maxNum;
     if (argv[1] == NULL) {
         cnt = 10;
-        rate = 2;
+        maxNum = 3;
     } else if (argv[2] == NULL) {
         cnt = atoi(argv[1]);
-        rate = 2;
+        maxNum = 1;
     } else {
         cnt = atoi(argv[1]);
-        rate = atoi(argv[2]);
+        maxNum = atoi(argv[2]);
     }
-
+    // cnt = 10;
     dirc = new int[cnt];
     srand((unsigned int)time(0));
     for (int i = 0; i < cnt; ++i) dirc[i] = rand() % 2;
+    // dirc[0] = 1;
+    // dirc[1] = 1;
+    // dirc[2] = 1;
+    // dirc[3] = 1;
+    // dirc[4] = 0;
 
-    monitor = new Monitor(rate);
-    printf("MAX Volumn: %d\n", MAXNUM);
-    for (int i = 0; i < cnt; ++i) {
+    // dirc[5] = 1;
+    // dirc[6] = 0;
+    // dirc[7] = 0;
+    // dirc[8] = 0;
+    // dirc[9] = 1;
+
+
+    monitor = new Monitor(maxNum);
+    printf("MAX NUM: %d\n", maxNum);
+    for (int i = 0; i < cnt / 2; ++i) {
         int pid = fork();
         if (pid == 0) {
-            // printf("%d\n", getpid());
             sleep(1);
             monitor->arrive(dirc[i]);
-            monitor->cross(dirc[i]);
-            monitor->quit(dirc[i]);
+            delete[] dirc;
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    sleep(3);
+
+    for (int i = cnt / 2; i < cnt; ++i) {
+        int pid = fork();
+        if (pid == 0) {
+            sleep(1);
+            monitor->arrive(dirc[i]);
             delete[] dirc;
             exit(EXIT_SUCCESS);
         }

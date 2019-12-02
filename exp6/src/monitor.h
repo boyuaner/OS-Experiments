@@ -1,15 +1,14 @@
-#include "ipc.h"
-#define MAXNUM 1
-
-enum State {empty, left, right};
+#ifndef __MONITOR_H_
+#define __MONITOR_H_
+#define SLEEP 1
 
 class Sema {
 public:
-    Sema(int id);
+    Sema(int semId);
     ~Sema();
     int wait();
     int signal();
-private:
+    
     int semId;
 };
 
@@ -17,25 +16,24 @@ class Condition {
 public:
     Condition();
     ~Condition();
-    void wait(Sema *lock, int dirc);
+    void wait(Sema *mutex, int dirc);
     void signal(int dirc);
-private:
+
     Sema *sema[2];
 };
 
-class Monitor {
+class Monitor{
 public:
-    Monitor(int rate);
+    Monitor(int maxNum);
     ~Monitor();
     void arrive(int dirc);
-    void cross(int dirc);
-    void quit(int dirc);
-private:
-    int rate;
+
+    int maxNum;
+    int *crossing;
     int *currentDirc;
     int *cnt[2];
-    Sema *lock;
+    Sema *mutex1, *mutex2;
     Condition *condition;
-
-    void *shmPtr;
 };
+
+#endif //__MONITOR_H_
