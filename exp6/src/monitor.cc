@@ -95,7 +95,6 @@ void Monitor::arrive(int dirc) {
         mutex1->signal();
         condition->sema[dirc]->wait();
         mutex2->wait();
-        // condition->wait(mutex, dirc);
     } else {
         mutex1->signal();
         mutex2->wait();
